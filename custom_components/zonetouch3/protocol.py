@@ -258,6 +258,14 @@ def _decode_fixed_string(data: bytes) -> str:
     return data.decode("utf-8", errors="replace").strip()
 
 
+def _decode_length_prefixed_string(data: bytes, pos: int) -> tuple[str, int]:
+    """Decode a length-prefixed string and return (decoded_string, new_position)."""
+    length = data[pos]
+    pos += 1
+    value = data[pos : pos + length].decode("utf-8", errors="replace").strip()
+    return value, pos + length
+
+
 def _parse_system_info(data: bytes, state: DeviceState) -> int:
     """Parse system info from FullState data. Returns the byte offset after system info."""
     info = state.device_info
@@ -284,36 +292,11 @@ def _parse_system_info(data: bytes, state: DeviceState) -> int:
 
     # 60+: length-prefixed version strings
     pos = 60
-
-    # hardware_version
-    hw_len = data[pos]
-    pos += 1
-    info.hardware_version = data[pos : pos + hw_len].decode("utf-8", errors="replace").strip()
-    pos += hw_len
-
-    # firmware_version
-    fw_len = data[pos]
-    pos += 1
-    info.firmware_version = data[pos : pos + fw_len].decode("utf-8", errors="replace").strip()
-    pos += fw_len
-
-    # boot_version
-    boot_len = data[pos]
-    pos += 1
-    info.boot_version = data[pos : pos + boot_len].decode("utf-8", errors="replace").strip()
-    pos += boot_len
-
-    # console_version
-    cv_len = data[pos]
-    pos += 1
-    info.console_version = data[pos : pos + cv_len].decode("utf-8", errors="replace").strip()
-    pos += cv_len
-
-    # console_id
-    ci_len = data[pos]
-    pos += 1
-    info.console_id = data[pos : pos + ci_len].decode("utf-8", errors="replace").strip()
-    pos += ci_len
+    info.hardware_version, pos = _decode_length_prefixed_string(data, pos)
+    info.firmware_version, pos = _decode_length_prefixed_string(data, pos)
+    info.boot_version, pos = _decode_length_prefixed_string(data, pos)
+    info.console_version, pos = _decode_length_prefixed_string(data, pos)
+    info.console_id, pos = _decode_length_prefixed_string(data, pos)
 
     return pos
 
@@ -344,7 +327,6 @@ def _parse_group_info(data: bytes, pos: int, state: DeviceState) -> None:
         flags = 0
         if record_offset + 6 < len(data):
             flags = data[record_offset + 6]
-        supports_turbo = bool(flags & 0x80)
         spill_active = bool(flags & 0x02)
 
         is_on = power_bits >= 1
@@ -443,12 +425,13 @@ class ZoneTouch3Client:
         packets = build_zone_set(zone, percent)
 
         async with self._lock:
-            reader, writer = await self._open_connection()
+            _, writer = await self._open_connection()
             try:
-                for packet in packets:
+                for i, packet in enumerate(packets):
                     writer.write(packet)
                     await writer.drain()
-                    await asyncio.sleep(0.2)
+                    if i < len(packets) - 1:
+                        await asyncio.sleep(0.2)
             finally:
                 await self._close(writer)
 

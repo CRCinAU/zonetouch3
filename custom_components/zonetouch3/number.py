@@ -11,7 +11,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
-from .coordinator import ZoneTouch3Coordinator
+from .coordinator import ZoneTouch3Coordinator, build_device_info
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -69,27 +69,16 @@ class ZoneTouch3ZoneNumber(CoordinatorEntity[ZoneTouch3Coordinator], NumberEntit
         self._zone_id = zone_id
         self._attr_unique_id = f"{entry.entry_id}_zone_{zone_id}"
 
-        # Use the zone name from the device if available
-        zone = coordinator.data.zones.get(zone_id)
-        self._attr_name = zone.name if zone else f"Zone {zone_id}"
-
-        dev_info = coordinator.data.device_info
-        self._attr_device_info = {
-            "identifiers": {(DOMAIN, dev_info.device_id or entry.entry_id)},
-            "name": f"{dev_info.owner}'s ZT3" if dev_info.owner else "ZoneTouch 3",
-            "manufacturer": "Polyaire",
-            "model": "ZoneTouch 3",
-            "serial_number": dev_info.device_id or None,
-            "sw_version": dev_info.firmware_version or None,
-            "hw_version": dev_info.hardware_version or None,
-        }
+        self._attr_name = coordinator.data.zones[zone_id].name
+        self._attr_device_info = build_device_info(
+            coordinator.data.device_info, entry.entry_id
+        )
 
     @property
     def native_value(self) -> float | None:
         """Return the current zone percentage."""
-        if self.coordinator.data and self._zone_id in self.coordinator.data.zones:
-            return self.coordinator.data.zones[self._zone_id].percent
-        return None
+        zone = self.coordinator.data.zones.get(self._zone_id) if self.coordinator.data else None
+        return zone.percent if zone else None
 
     async def async_set_native_value(self, value: float) -> None:
         """Set the zone percentage."""

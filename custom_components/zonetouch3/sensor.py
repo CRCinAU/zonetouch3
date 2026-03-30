@@ -14,7 +14,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
-from .coordinator import ZoneTouch3Coordinator
+from .coordinator import ZoneTouch3Coordinator, build_device_info
 
 
 async def async_setup_entry(
@@ -48,16 +48,9 @@ class ZoneTouch3TemperatureSensor(
         super().__init__(coordinator)
         self._attr_unique_id = f"{entry.entry_id}_temperature"
 
-        dev_info = coordinator.data.device_info
-        self._attr_device_info = {
-            "identifiers": {(DOMAIN, dev_info.device_id or entry.entry_id)},
-            "name": f"{dev_info.owner}'s ZT3" if dev_info.owner else "ZoneTouch 3",
-            "manufacturer": "Polyaire",
-            "model": "ZoneTouch 3",
-            "serial_number": dev_info.device_id or None,
-            "sw_version": dev_info.firmware_version or None,
-            "hw_version": dev_info.hardware_version or None,
-        }
+        self._attr_device_info = build_device_info(
+            coordinator.data.device_info, entry.entry_id
+        )
 
     @property
     def native_value(self) -> float | None:
