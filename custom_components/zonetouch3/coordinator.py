@@ -71,11 +71,12 @@ class ZoneTouch3Coordinator(DataUpdateCoordinator[DeviceState]):
         if self.data is None:
             return
 
+        new_zones = dict(self.data.zones)
         changed = False
         for zone_id, new_zone in updates.items():
-            if zone_id not in self.data.zones:
+            if zone_id not in new_zones:
                 continue
-            old_zone = self.data.zones[zone_id]
+            old_zone = new_zones[zone_id]
             new_zone.name = old_zone.name  # preserve name from FullState
             if (
                 new_zone.is_on != old_zone.is_on
@@ -89,11 +90,15 @@ class ZoneTouch3Coordinator(DataUpdateCoordinator[DeviceState]):
                     old_zone.percent, "ON" if old_zone.is_on else "OFF",
                     new_zone.percent, "ON" if new_zone.is_on else "OFF",
                 )
-                self.data.zones[zone_id] = new_zone
+                new_zones[zone_id] = new_zone
                 changed = True
 
         if changed:
-            self.async_set_updated_data(self.data)
+            self.async_set_updated_data(DeviceState(
+                zones=new_zones,
+                temperature=self.data.temperature,
+                device_info=self.data.device_info,
+            ))
 
     @callback
     def _on_temperature_push(self, temp: float) -> None:
@@ -103,8 +108,11 @@ class ZoneTouch3Coordinator(DataUpdateCoordinator[DeviceState]):
         _LOGGER.debug(
             "Temperature push: %s°C -> %s°C", self.data.temperature, temp
         )
-        self.data.temperature = temp
-        self.async_set_updated_data(self.data)
+        self.async_set_updated_data(DeviceState(
+            zones=self.data.zones,
+            temperature=temp,
+            device_info=self.data.device_info,
+        ))
 
     def _log_changes(self, new: DeviceState) -> None:
         """Log any state changes since the last poll."""

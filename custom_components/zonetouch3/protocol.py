@@ -667,7 +667,9 @@ class ZoneTouch3Client:
         _LOGGER.debug("ZT3 reader loop started")
         try:
             while True:
-                assert self._framer is not None
+                if self._framer is None:
+                    _LOGGER.error("BUG: _reader_loop started without framer")
+                    return
                 # 90s timeout: coordinator sends FullState every 30s so this
                 # should never expire in normal operation.
                 packet = await self._framer.read_packet(timeout=90.0)
@@ -686,11 +688,14 @@ class ZoneTouch3Client:
                         "FullState: %d zone(s), temp=%s°C",
                         len(state.zones), state.temperature,
                     )
-                    # Resolve the oldest pending async_query_state() call
-                    if self._pending_fullstate:
-                        fut = self._pending_fullstate.pop(0)
-                        if not fut.done():
-                            fut.set_result(state)
+                    # Resolve the oldest pending async_query_state() call.
+                    # Acquire the lock so this is atomic with respect to
+                    # concurrent appends in async_query_state().
+                    async with self._lock:
+                        if self._pending_fullstate:
+                            fut = self._pending_fullstate.pop(0)
+                            if not fut.done():
+                                fut.set_result(state)
 
                 elif kind == "group_status":
                     updates: dict[int, ZoneStatus] = payload
@@ -741,17 +746,15 @@ class ZoneTouch3Client:
         Reconnects automatically if the connection is down.
         Waits up to 15s for the device response.
         """
-        if self._writer is None:
-            await self.async_connect()
-
         loop = asyncio.get_running_loop()
         fut: asyncio.Future[DeviceState] = loop.create_future()
 
+        # Hold the lock for the entire connect-then-write sequence so that
+        # no other coroutine can observe a partially-connected state or race
+        # to connect simultaneously.
         async with self._lock:
             if self._writer is None:
-                raise ConnectionError(
-                    f"Cannot connect to ZoneTouch 3 at {self._host}:{self._port}"
-                )
+                await self.async_connect()
             self._pending_fullstate.append(fut)
             pkt = build_fullstate_query()
             _LOGGER.debug("TX FullState query: %s", pkt.hex(" "))
@@ -761,27 +764,25 @@ class ZoneTouch3Client:
         try:
             return await asyncio.wait_for(fut, timeout=15)
         except TimeoutError:
-            try:
-                self._pending_fullstate.remove(fut)
-            except ValueError:
-                pass
+            async with self._lock:
+                try:
+                    self._pending_fullstate.remove(fut)
+                except ValueError:
+                    pass
             raise ConnectionError("Timeout waiting for FullState response from ZoneTouch 3")
 
     async def async_set_zone(self, zone: int, percent: int) -> None:
         """Set a zone's percentage value over the persistent connection."""
-        if self._writer is None:
-            await self.async_connect()
-
         packets = build_zone_set(zone, percent)
         _LOGGER.debug(
             "Setting zone %d to %d%% (%d packet(s))", zone, percent, len(packets)
         )
 
+        # Hold the lock for the entire connect-then-write sequence (same
+        # reasoning as async_query_state).
         async with self._lock:
             if self._writer is None:
-                raise ConnectionError(
-                    f"Cannot connect to ZoneTouch 3 at {self._host}:{self._port}"
-                )
+                await self.async_connect()
             for i, packet in enumerate(packets):
                 _LOGGER.debug("  TX[%d]: %s", i, packet.hex(" "))
                 self._writer.write(packet)
