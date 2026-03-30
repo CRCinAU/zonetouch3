@@ -287,6 +287,16 @@ class FrameReader:
 
         data_length = struct.unpack(">H", stripped_tail[4:6])[0]
 
+        # Sanity-check data_length before allocating. Largest observed packet
+        # is a FullState response at ~300 bytes; 2048 gives ample headroom.
+        # A larger value indicates a corrupted stream — reconnect rather than
+        # buffering tens of kilobytes waiting for data that will never arrive.
+        if data_length > 2048:
+            raise OSError(
+                f"Packet data_length {data_length} exceeds maximum 2048 — "
+                "stream is likely corrupted"
+            )
+
         # Read until we have the complete unescaped packet:
         # 6 fixed fields + data_length data bytes + 2 CRC bytes
         needed_tail = 6 + data_length + 2
