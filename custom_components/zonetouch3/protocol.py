@@ -776,6 +776,9 @@ class ZoneTouch3Client:
         try:
             return await asyncio.wait_for(fut, timeout=15)
         except TimeoutError:
+            # Explicitly cancel the future so _reader_loop's `if not fut.done()`
+            # guard skips it if the FullState response arrives after we give up.
+            fut.cancel()
             async with self._lock:
                 try:
                     self._pending_fullstate.remove(fut)
