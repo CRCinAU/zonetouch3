@@ -1,0 +1,21 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to ZoneTouch 3",
+        "description": "Enter the IP address and port of your Polyaire ZoneTouch 3 controller.",
+        "data": {
+          "host": "IP Address",
+          "port": "Port",
+          "poll_interval": "Poll interval (seconds)"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Unable to connect to the ZoneTouch 3 device. Check the IP address and port."
+    },
+    "abort": {
+      "already_configured": "This device is already configured."
+    }
+  }
+}
