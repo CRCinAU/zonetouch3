@@ -640,7 +640,19 @@ class ZoneTouch3Client:
         self._reader_task = asyncio.get_running_loop().create_task(
             self._reader_loop(), name="zonetouch3_reader"
         )
+        self._reader_task.add_done_callback(self._on_reader_task_done)
         _LOGGER.debug("Connected to ZoneTouch 3 at %s:%s", self._host, self._port)
+
+    def _on_reader_task_done(self, task: asyncio.Task) -> None:
+        """Log if the reader task exits with an unexpected exception."""
+        if task.cancelled():
+            return
+        exc = task.exception()
+        if exc is not None:
+            _LOGGER.error(
+                "ZT3 reader task raised an unexpected exception: %s",
+                exc, exc_info=exc,
+            )
 
     async def async_disconnect(self) -> None:
         """Close the persistent connection and stop the background reader task."""
