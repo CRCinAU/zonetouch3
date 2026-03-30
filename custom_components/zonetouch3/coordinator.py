@@ -48,6 +48,45 @@ class ZoneTouch3Coordinator(DataUpdateCoordinator[DeviceState]):
     async def _async_update_data(self) -> DeviceState:
         """Fetch data from the device."""
         try:
-            return await self.client.async_query_state()
+            new = await self.client.async_query_state()
         except ConnectionError as err:
             raise UpdateFailed(f"Error communicating with ZoneTouch 3: {err}") from err
+
+        self._log_changes(new)
+        return new
+
+    def _log_changes(self, new: DeviceState) -> None:
+        """Log any state changes since the last poll."""
+        prev = self.data
+        if prev is None:
+            _LOGGER.debug(
+                "Initial poll: %d zone(s), temp=%s°C",
+                len(new.zones), new.temperature,
+            )
+            return
+
+        if new.temperature != prev.temperature:
+            _LOGGER.debug(
+                "Temperature: %s°C -> %s°C", prev.temperature, new.temperature
+            )
+
+        for zone_id, zone in new.zones.items():
+            old = prev.zones.get(zone_id)
+            if old is None:
+                _LOGGER.debug("Zone %d (%s): appeared", zone_id, zone.name)
+                continue
+            changes = []
+            if zone.is_on != old.is_on:
+                changes.append(f"{'ON' if zone.is_on else 'OFF'} (was {'ON' if old.is_on else 'OFF'})")
+            if zone.percent != old.percent:
+                changes.append(f"{old.percent}% -> {zone.percent}%")
+            if zone.spill != old.spill:
+                changes.append(f"spill={'on' if zone.spill else 'off'}")
+            if zone.turbo != old.turbo:
+                changes.append(f"turbo={'on' if zone.turbo else 'off'}")
+            if changes:
+                _LOGGER.debug("Zone %d (%s): %s", zone_id, zone.name, ", ".join(changes))
+
+        for zone_id in prev.zones:
+            if zone_id not in new.zones:
+                _LOGGER.debug("Zone %d: disappeared", zone_id)

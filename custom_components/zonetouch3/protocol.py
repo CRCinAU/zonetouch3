@@ -209,6 +209,8 @@ def parse_fullstate(raw: bytes) -> DeviceState | None:
 
     Returns None if the response cannot be parsed.
     """
+    _LOGGER.debug("Received %d bytes: %s", len(raw), raw.hex(" "))
+
     if len(raw) < 12:
         return None
 
@@ -219,6 +221,11 @@ def parse_fullstate(raw: bytes) -> DeviceState | None:
     # Unpack header: 4-byte magic, dest, src, msg_id, msg_type, data_length
     header, addr_hi, addr_lo, msg_id, msg_type, data_length = struct.unpack(
         ">IBBBBH", raw[:10]
+    )
+
+    _LOGGER.debug(
+        "Header: 0x%08X  dest=0x%02X src=0x%02X msg_id=0x%02X type=0x%02X data_len=%d",
+        header, addr_hi, addr_lo, msg_id, msg_type, data_length,
     )
 
     if header != 0x555555AA:
@@ -298,6 +305,13 @@ def _parse_system_info(data: bytes, state: DeviceState) -> int:
     info.console_version, pos = _decode_length_prefixed_string(data, pos)
     info.console_id, pos = _decode_length_prefixed_string(data, pos)
 
+    _LOGGER.debug(
+        "Device: id=%s owner=%s temp=%s°C hw=%s fw=%s boot=%s console=%s (%s)",
+        info.device_id, info.owner, state.temperature,
+        info.hardware_version, info.firmware_version, info.boot_version,
+        info.console_version, info.console_id,
+    )
+
     return pos
 
 
@@ -351,6 +365,14 @@ def _parse_group_info(data: bytes, pos: int, state: DeviceState) -> None:
             percent=position,
             spill=spill_active,
             turbo=is_turbo,
+        )
+        _LOGGER.debug(
+            "  Zone %d (%s): %s @ %d%%%s%s",
+            zone_id, name,
+            "TURBO" if is_turbo else ("ON" if is_on else "OFF"),
+            position,
+            " [SPILL]" if spill_active else "",
+            f"  raw=[{data[record_offset]:02X} {data[record_offset+1]:02X}]",
         )
 
 
@@ -423,11 +445,15 @@ class ZoneTouch3Client:
     async def async_set_zone(self, zone: int, percent: int) -> None:
         """Set a zone's percentage value."""
         packets = build_zone_set(zone, percent)
+        _LOGGER.debug(
+            "Setting zone %d to %d%% (%d packet(s))", zone, percent, len(packets)
+        )
 
         async with self._lock:
             _, writer = await self._open_connection()
             try:
                 for i, packet in enumerate(packets):
+                    _LOGGER.debug("  TX[%d]: %s", i, packet.hex(" "))
                     writer.write(packet)
                     await writer.drain()
                     if i < len(packets) - 1:
