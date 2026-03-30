@@ -666,8 +666,8 @@ class ZoneTouch3Client:
         if self._writer is not None:
             self._writer.close()
             try:
-                await self._writer.wait_closed()
-            except OSError:
+                await asyncio.wait_for(self._writer.wait_closed(), timeout=5)
+            except (OSError, TimeoutError):
                 pass
             self._writer = None
         self._reader = None
