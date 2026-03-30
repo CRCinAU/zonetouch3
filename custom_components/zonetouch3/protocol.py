@@ -543,7 +543,19 @@ def _dispatch_packet(packet: bytes) -> tuple[str, object]:
         "group_control_echo" → None
         "unknown"            → None
     """
-    if len(packet) < 10:
+    # Minimum packet: 4 header + 6 fixed fields + 2 CRC = 12 bytes
+    if len(packet) < 12:
+        return "unknown", None
+
+    # Validate CRC: computed over everything after the 4-byte header,
+    # excluding the 2 trailing CRC bytes.
+    crc_received = (packet[-2] << 8) | packet[-1]
+    crc_computed = _crc16_modbus(packet[4:-2])
+    if crc_computed != crc_received:
+        _LOGGER.warning(
+            "Packet CRC mismatch (got 0x%04X, expected 0x%04X), discarding: %s",
+            crc_received, crc_computed, packet.hex(" "),
+        )
         return "unknown", None
 
     msg_type = packet[7]
