@@ -82,7 +82,6 @@ class ZoneTouch3ZoneNumber(CoordinatorEntity[ZoneTouch3Coordinator], NumberEntit
 
     async def async_set_native_value(self, value: float) -> None:
         """Set the zone percentage."""
-        await self.coordinator.client.async_set_zone(
-            self._zone_id, int(value)
-        )
-        await self.coordinator.async_request_refresh()
+        await self.coordinator.client.async_set_zone(self._zone_id, int(value))
+        # The device will push a 0x21 Group Status packet confirming the change,
+        # which the coordinator's _on_zone_status_push callback handles immediately.

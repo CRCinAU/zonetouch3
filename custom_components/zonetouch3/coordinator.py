@@ -5,11 +5,11 @@ from __future__ import annotations
 import logging
 from datetime import timedelta
 
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .const import DOMAIN
-from .protocol import DeviceInfo, DeviceState, ZoneTouch3Client
+from .protocol import DeviceInfo, DeviceState, ZoneStatus, ZoneTouch3Client
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -45,8 +45,18 @@ class ZoneTouch3Coordinator(DataUpdateCoordinator[DeviceState]):
         )
         self.client = client
 
+    async def async_start(self) -> None:
+        """Connect the persistent client and register push callbacks."""
+        await self.client.async_connect()
+        self.client.register_zone_status_callback(self._on_zone_status_push)
+        self.client.register_temperature_callback(self._on_temperature_push)
+
+    async def async_stop(self) -> None:
+        """Disconnect the persistent client."""
+        await self.client.async_disconnect()
+
     async def _async_update_data(self) -> DeviceState:
-        """Fetch data from the device."""
+        """Send a FullState keepalive and return the authoritative device state."""
         try:
             new = await self.client.async_query_state()
         except ConnectionError as err:
@@ -54,6 +64,47 @@ class ZoneTouch3Coordinator(DataUpdateCoordinator[DeviceState]):
 
         self._log_changes(new)
         return new
+
+    @callback
+    def _on_zone_status_push(self, updates: dict[int, ZoneStatus]) -> None:
+        """Handle an unsolicited 0x21 Group Status push from the device."""
+        if self.data is None:
+            return
+
+        changed = False
+        for zone_id, new_zone in updates.items():
+            if zone_id not in self.data.zones:
+                continue
+            old_zone = self.data.zones[zone_id]
+            new_zone.name = old_zone.name  # preserve name from FullState
+            if (
+                new_zone.is_on != old_zone.is_on
+                or new_zone.percent != old_zone.percent
+                or new_zone.spill != old_zone.spill
+                or new_zone.turbo != old_zone.turbo
+            ):
+                _LOGGER.debug(
+                    "Zone %d (%s) push update: %s%% %s -> %s%% %s",
+                    zone_id, new_zone.name,
+                    old_zone.percent, "ON" if old_zone.is_on else "OFF",
+                    new_zone.percent, "ON" if new_zone.is_on else "OFF",
+                )
+                self.data.zones[zone_id] = new_zone
+                changed = True
+
+        if changed:
+            self.async_set_updated_data(self.data)
+
+    @callback
+    def _on_temperature_push(self, temp: float) -> None:
+        """Handle an unsolicited 0x2B Temperature push from the device."""
+        if self.data is None or self.data.temperature == temp:
+            return
+        _LOGGER.debug(
+            "Temperature push: %s°C -> %s°C", self.data.temperature, temp
+        )
+        self.data.temperature = temp
+        self.async_set_updated_data(self.data)
 
     def _log_changes(self, new: DeviceState) -> None:
         """Log any state changes since the last poll."""
