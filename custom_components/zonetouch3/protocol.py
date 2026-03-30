@@ -188,8 +188,8 @@ def build_zone_set(zone: int, percent: int) -> list[bytes]:
             0x00, 0x0C,      # Length
         ]) + SUBTYPE_ZONE_SET + bytes([
             0x00, 0x00,      # Common Data Length
-            0x00, 0x01,      # Repeat Data Count (1 group)
             0x00, 0x04,      # Each Repeat Data Length (4 bytes)
+            0x00, 0x01,      # Repeat Data Count (1 group)
             zone,            # Zone number
             state,           # State
             percent,         # Value
