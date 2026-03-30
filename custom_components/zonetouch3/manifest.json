@@ -1,9 +1,10 @@
 {
   "domain": "zonetouch3",
   "name": "Polyaire ZoneTouch 3",
-  "codeowners": [],
+  "codeowners": ["@CRCinAU"],
   "config_flow": true,
   "documentation": "",
-  "iot_class": "local_polling",
-  "version": "1.0.0"
+  "integration_type": "device",
+  "iot_class": "local_push",
+  "version": "1.1.0"
 }
