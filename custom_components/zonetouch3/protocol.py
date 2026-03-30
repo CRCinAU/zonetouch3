@@ -319,7 +319,7 @@ def _parse_group_info(data: bytes, pos: int, state: DeviceState) -> None:
 
         index_byte = data[record_offset]
         zone_id = index_byte & 0x3F          # lower 6 bits
-        power_bits = (index_byte >> 6) & 0x03  # upper 2 bits: 0=OFF, 1=ON, 2=TURBO
+        power_bits = (index_byte >> 6) & 0x03  # upper 2 bits: 0b00=OFF, 0b01=ON, 0b11=TURBO
 
         position = data[record_offset + 1] & 0x7F  # lower 7 bits = open percentage
 
