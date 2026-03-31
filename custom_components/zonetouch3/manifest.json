@@ -3,8 +3,9 @@
   "name": "Polyaire ZoneTouch 3",
   "codeowners": ["@CRCinAU"],
   "config_flow": true,
-  "documentation": "",
+  "documentation": "https://github.com/CRCinAU/zonetouch3",
   "integration_type": "device",
   "iot_class": "local_push",
+  "issue_tracker": "https://github.com/CRCinAU/zonetouch3/issues",
   "version": "1.1.0"
 }
