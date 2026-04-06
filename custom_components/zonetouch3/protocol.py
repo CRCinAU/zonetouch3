@@ -760,13 +760,19 @@ class ZoneTouch3Client:
                             "0x21 Group Status: %d zone(s) updated", len(filtered)
                         )
                         for cb in self._zone_status_callbacks:
-                            cb(filtered)
+                            try:
+                                cb(filtered)
+                            except Exception:
+                                _LOGGER.exception("Exception in zone status callback")
 
                 elif kind == "temperature":
                     temp: float = payload
                     _LOGGER.debug("0x2B Temperature: %s°C", temp)
                     for cb in self._temperature_callbacks:
-                        cb(temp)
+                        try:
+                            cb(temp)
+                        except Exception:
+                            _LOGGER.exception("Exception in temperature callback")
 
                 elif kind == "group_control_echo":
                     _LOGGER.debug("Group Control echo (our command acknowledged)")
