@@ -219,7 +219,10 @@ def _wire_bytes_for(wire_data: bytes, needed_stripped: int) -> int:
         stripped += 1
         n55 = (n55 + 1) if b == 0x55 else 0
         if n55 == 3:
-            i += 2  # this 0x55 + the redundant 0x00 that follows
+            if i + 1 < len(wire_data) and wire_data[i + 1] == 0x00:
+                i += 2  # this 0x55 + the redundant 0x00
+            else:
+                i += 1  # no redundant byte present; skip just this 0x55
             n55 = 0
         else:
             i += 1
