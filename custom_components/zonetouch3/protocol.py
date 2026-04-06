@@ -675,10 +675,21 @@ class ZoneTouch3Client:
         self._reader = reader
         self._writer = writer
         self._framer = FrameReader(reader)
-        self._reader_task = asyncio.get_running_loop().create_task(
-            self._reader_loop(), name="zonetouch3_reader"
-        )
-        self._reader_task.add_done_callback(self._on_reader_task_done)
+        try:
+            self._reader_task = asyncio.get_running_loop().create_task(
+                self._reader_loop(), name="zonetouch3_reader"
+            )
+            self._reader_task.add_done_callback(self._on_reader_task_done)
+        except Exception:
+            writer.close()
+            try:
+                await asyncio.wait_for(writer.wait_closed(), timeout=5)
+            except Exception:
+                pass
+            self._reader = None
+            self._writer = None
+            self._framer = None
+            raise
         _LOGGER.debug("Connected to ZoneTouch 3 at %s:%s", self._host, self._port)
 
     def _on_reader_task_done(self, task: asyncio.Task) -> None:
