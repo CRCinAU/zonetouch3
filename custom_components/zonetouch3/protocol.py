@@ -178,6 +178,10 @@ def build_fullstate_query() -> bytes:
 
 def build_zone_set(zone: int, percent: int) -> list[bytes]:
     """Build packets to set a zone's value. Returns a list of packets to send."""
+    if not 0 <= zone <= 15:
+        raise ValueError(f"Zone must be 0-15 per spec §4.a.i, got {zone}")
+    if not 0 <= percent <= 100:
+        raise ValueError(f"Percent must be 0-100 per spec §4.a.i, got {percent}")
     packets = []
 
     if percent == 0:
