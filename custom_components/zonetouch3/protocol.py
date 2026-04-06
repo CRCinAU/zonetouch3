@@ -333,8 +333,17 @@ def _decode_fixed_string(data: bytes) -> str:
 
 def _decode_length_prefixed_string(data: bytes, pos: int) -> tuple[str, int]:
     """Decode a length-prefixed string and return (decoded_string, new_position)."""
+    if pos >= len(data):
+        raise IndexError(
+            f"Cannot read length byte at position {pos}, buffer is {len(data)} bytes"
+        )
     length = data[pos]
     pos += 1
+    if pos + length > len(data):
+        raise IndexError(
+            f"String at position {pos} claims {length} bytes but only "
+            f"{len(data) - pos} remain"
+        )
     value = data[pos : pos + length].decode("utf-8", errors="replace").strip()
     return value, pos + length
 
