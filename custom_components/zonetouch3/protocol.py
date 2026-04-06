@@ -373,7 +373,7 @@ def _parse_system_info(data: bytes, state: DeviceState) -> int:
     # 58-59: temperature, signed 16-bit
     temp_raw = struct.unpack(">H", data[58:60])[0]
     temp = (temp_raw - 500) / 10
-    if temp <= 50.0:
+    if -50.0 <= temp <= 50.0:
         state.temperature = temp
 
     # 60+: length-prefixed version strings
@@ -551,7 +551,7 @@ def _parse_temperature_data(data: bytes) -> float | None:
             return None
         temp_raw = struct.unpack(">H", data[10:12])[0]
         temp = (temp_raw - 500) / 10
-        if temp > 50.0:
+        if not -50.0 <= temp <= 50.0:
             return None
         return temp
     except (struct.error, IndexError) as err:
