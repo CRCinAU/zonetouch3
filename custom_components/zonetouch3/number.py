@@ -69,10 +69,11 @@ class ZoneTouch3ZoneNumber(CoordinatorEntity[ZoneTouch3Coordinator], NumberEntit
         self._zone_id = zone_id
         self._attr_unique_id = f"{entry.entry_id}_zone_{zone_id}"
 
-        self._attr_name = coordinator.data.zones[zone_id].name
-        self._attr_device_info = build_device_info(
-            coordinator.data.device_info, entry.entry_id
-        )
+        if coordinator.data:
+            self._attr_name = coordinator.data.zones[zone_id].name
+            self._attr_device_info = build_device_info(
+                coordinator.data.device_info, entry.entry_id
+            )
 
     @property
     def native_value(self) -> float | None:
